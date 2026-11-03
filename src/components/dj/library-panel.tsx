@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { native } from "@/native";
 
 import { Pad } from "./pad";
+import { StorageCheck } from "./storage-check";
 import { CAPTION, formatClock } from "./theme";
 
 const COLUMNS = "grid grid-cols-[2rem_1fr_5rem_8rem_4rem_8rem] gap-3";
@@ -66,7 +67,7 @@ export const LibraryPanel = () => {
         engine.addFiles(e.dataTransfer.files);
       }}
     >
-      <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-baseline gap-3">
         <h2 className={CAPTION}>Library</h2>
         <p aria-live="polite" className="text-xs text-text-secondary" role="status">
           {status} Drop audio files here.
@@ -102,6 +103,7 @@ export const LibraryPanel = () => {
             type="file"
           />
         </div>
+        <StorageCheck />
       </div>
 
       <div className={cn(COLUMNS, "border-b border-divider px-2 pb-2", CAPTION)}>

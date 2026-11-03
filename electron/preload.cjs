@@ -4,4 +4,5 @@ contextBridge.exposeInMainWorld("opendeckNative", {
   pickAudio: (kind) => ipcRenderer.invoke("pick-audio", kind),
   platform: process.platform,
   readAudio: (path) => ipcRenderer.invoke("read-audio", path),
+  scanFolder: () => ipcRenderer.invoke("scan-folder"),
 });

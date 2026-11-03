@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -45,6 +45,24 @@ ipcMain.handle("pick-audio", async (event, kind) => {
   const files = kind === "folder" ? await scanFolder(result.filePaths[0]) : result.filePaths;
   for (const file of files) allowedFiles.add(file);
   return files.map((file) => ({ name: path.basename(file), path: file }));
+});
+
+// Measures a folder for the storage check: names and sizes only, no file access granted.
+ipcMain.handle("scan-folder", async (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(window, {
+    properties: ["openDirectory"],
+    title: "Choose your music folder",
+  });
+  if (result.canceled) return null;
+  const root = result.filePaths[0];
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  const files = await Promise.all(
+    entries
+      .filter((e) => e.isFile())
+      .map(async (e) => ({ name: e.name, size: (await stat(path.join(e.parentPath, e.name))).size }))
+  );
+  return { files, folder: path.basename(root) };
 });
 
 ipcMain.handle("read-audio", async (_event, file) => {

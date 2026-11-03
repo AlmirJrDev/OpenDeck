@@ -6,6 +6,7 @@ export interface NativeAudioFile {
 interface OpenDeckNative {
   pickAudio: (kind: "files" | "folder") => Promise<NativeAudioFile[]>;
   readAudio: (path: string) => Promise<ArrayBuffer>;
+  scanFolder: () => Promise<{ folder: string; files: { name: string; size: number }[] } | null>;
   platform: string;
 }
 

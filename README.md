@@ -38,6 +38,10 @@ Click **+ Demo tracks** (procedurally generated house loops at
   second audio device; master output device selection
 - Desktop app: import a whole music folder or pick files with the native dialog; tracks are
   analysed in a background queue and decoded again when loaded, so large libraries fit in memory
+- Storage check: **Check folder size** measures a music folder (sizes only, no upload) and shows
+  whether it fits the free tier of Cloudflare R2, Vercel Blob or Supabase Storage, the monthly
+  cost and download cost per computer otherwise, and the upload time. Prices live in
+  `src/storage/plans.ts` with the date they were checked
 - Keyboard: `Z`/`X`/`C` play/cue/sync A · `M`/`N`/`B` play/cue/sync B · `1-4` / `7-0` hot cues ·
   `←`/`→` crossfader · `Q`–`I` sampler pads
 
