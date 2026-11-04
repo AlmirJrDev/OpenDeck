@@ -1,34 +1,71 @@
 import { createAnalyserTap, type AnalyserTap } from "@/hooks/use-audio-analyser";
 import { dbToGain } from "@/lib/decibels";
 
+import { readCached } from "@/cloud/cache";
+import { extensionOf } from "@/cloud/config";
+import { sha256Hex } from "@/cloud/hash";
 import { native, type NativeAudioFile } from "@/native";
 
 import type { TrackAnalysis } from "./analysis";
 import { analyzeBuffer } from "./analyze-buffer";
 import { Deck, type DeckId } from "./deck";
 import { DEMO_SPECS, renderDemoTrack, type DemoSpec } from "./demo-tracks";
+import type { MusicalKey } from "./key";
 import { Sampler } from "./sampler";
 import { Store } from "./store";
+
+export interface TrackCues {
+  cue: number | null;
+  hotCues: (number | null)[];
+}
+
+/** Where a track is in the cloud library. Undefined for tracks that cannot sync, such as demos. */
+export type CloudState = "local" | "uploading" | "synced" | "remote" | "downloading";
 
 export interface LibraryTrack {
   id: string;
   title: string;
   artist: string;
-  status: "queued" | "analyzing" | "ready" | "error";
+  /** "remote": only in the cloud library, not on this computer yet. */
+  status: "queued" | "analyzing" | "ready" | "error" | "remote";
   duration?: number;
   bpm?: number;
   error?: string;
   analysis?: TrackAnalysis;
+  /** Key from the cloud library, shown before the track is analyzed here. */
+  key?: MusicalKey | null;
+  /** SHA-256 of the file: its identity in the cloud library. */
+  hash?: string;
+  ext?: string;
+  size?: number;
+  cloud?: CloudState;
+  /** Upload or download progress, 0..1. */
+  progress?: number;
+  /** Cue points saved for this track, restored when a deck loads it. */
+  cues?: TrackCues;
+}
+
+export interface RemoteTrack {
+  hash: string;
+  ext: string;
+  size: number;
+  title: string;
+  artist: string;
+  duration: number | null;
+  bpm: number | null;
+  key: MusicalKey | null;
+  cues: TrackCues;
 }
 
 type TrackSource =
   | { kind: "file"; file: File }
   | { kind: "native"; path: string }
   | { kind: "demo"; spec: DemoSpec }
-  | { kind: "buffer"; buffer: AudioBuffer };
+  | { kind: "buffer"; buffer: AudioBuffer }
+  | { kind: "cache"; hash: string; ext: string };
 
 const ANALYSIS_CONCURRENCY = 2;
-const AUDIO_FILE = /.(mp3|wav|flac|ogg|m4a|aac|aiff?|opus)$/i;
+const AUDIO_FILE = /\.(mp3|wav|flac|ogg|m4a|aac|aiff?|opus)$/i;
 
 interface EngineState {
   library: LibraryTrack[];
@@ -203,38 +240,56 @@ export class Engine extends Store<EngineState> {
     void this.phonesCtx?.resume();
   }
 
-  private patchTrack(id: string, patch: Partial<LibraryTrack>) {
+  /** Called after a track is analyzed, so cloud sync can react. */
+  onTrackChange: ((track: LibraryTrack) => void) | null = null;
+
+  updateTrack(id: string, patch: Partial<LibraryTrack>) {
     this.set({
       library: this.state.library.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     });
   }
 
-  private async decode(id: string): Promise<AudioBuffer> {
+  findTrack(predicate: (track: LibraryTrack) => boolean) {
+    return this.state.library.find(predicate);
+  }
+
+  /** Raw bytes of a track that came from a file, for hashing and upload. Null for demos. */
+  async sourceBytes(id: string): Promise<ArrayBuffer | null> {
     const source = this.sources.get(id);
-    if (!source) throw new Error("Unknown track");
-    switch (source.kind) {
-      case "buffer":
-        return source.buffer;
-      case "demo": {
-        const buffer = await renderDemoTrack(source.spec);
-        this.sources.set(id, { buffer, kind: "buffer" });
-        return buffer;
-      }
+    switch (source?.kind) {
       case "file":
-        return this.ctx.decodeAudioData(await source.file.arrayBuffer());
-      case "native": {
+        return source.file.arrayBuffer();
+      case "native":
         if (!native) throw new Error("Native file access is only available in the desktop app");
-        return this.ctx.decodeAudioData(await native.readAudio(source.path));
-      }
+        return native.readAudio(source.path);
+      case "cache":
+        return readCached(source.hash, source.ext);
+      default:
+        return null;
     }
   }
 
-  private enqueue(meta: { title: string; artist: string }, source: TrackSource) {
+  private async decode(id: string): Promise<AudioBuffer> {
+    const source = this.sources.get(id);
+    if (!source) throw new Error("Unknown track");
+    if (source.kind === "buffer") return source.buffer;
+    if (source.kind === "demo") {
+      const buffer = await renderDemoTrack(source.spec);
+      this.sources.set(id, { buffer, kind: "buffer" });
+      return buffer;
+    }
+    const bytes = await this.sourceBytes(id);
+    if (!bytes) throw new Error("Track has no audio data");
+    return this.ctx.decodeAudioData(bytes);
+  }
+
+  private enqueue(meta: Partial<LibraryTrack> & { title: string; artist: string }, source: TrackSource) {
     const id = `t${this.nextId++}`;
     this.sources.set(id, source);
     this.queue.push(id);
     this.set({ library: [...this.state.library, { id, ...meta, status: "queued" }] });
     this.pump();
+    return id;
   }
 
   private pump() {
@@ -249,17 +304,37 @@ export class Engine extends Store<EngineState> {
   }
 
   private async analyze(id: string) {
-    this.patchTrack(id, { status: "analyzing" });
+    this.updateTrack(id, { status: "analyzing" });
     try {
+      const source = this.sources.get(id);
+      // Files are hashed while their bytes are in memory; the hash links them to the cloud library.
+      let hashPatch: Partial<LibraryTrack> = {};
+      if (source?.kind === "file" || source?.kind === "native") {
+        const bytes = await this.sourceBytes(id);
+        if (bytes) {
+          const name = source.kind === "file" ? source.file.name : source.path;
+          hashPatch = { ext: extensionOf(name), hash: await sha256Hex(bytes), size: bytes.byteLength };
+        }
+      }
       const buffer = await this.decode(id);
       const analysis = await analyzeBuffer(buffer);
-      this.patchTrack(id, { analysis, bpm: analysis.bpm, duration: buffer.duration, status: "ready" });
+      const track = this.state.library.find((t) => t.id === id);
+      this.updateTrack(id, {
+        ...hashPatch,
+        analysis,
+        bpm: analysis.bpm,
+        cloud: track?.cloud ?? (hashPatch.hash ? "local" : undefined),
+        duration: buffer.duration,
+        status: "ready",
+      });
     } catch (error) {
-      this.patchTrack(id, {
+      this.updateTrack(id, {
         error: error instanceof Error ? error.message : String(error),
         status: "error",
       });
     }
+    const track = this.state.library.find((t) => t.id === id);
+    if (track) this.onTrackChange?.(track);
   }
 
   addFiles(files: Iterable<File>) {
@@ -282,10 +357,65 @@ export class Engine extends Store<EngineState> {
     }
   }
 
+  /** Adds a cloud track that is not on this computer yet. */
+  addRemoteTrack(remote: RemoteTrack) {
+    const id = `t${this.nextId++}`;
+    const track: LibraryTrack = {
+      artist: remote.artist,
+      bpm: remote.bpm ?? undefined,
+      cloud: "remote",
+      cues: remote.cues,
+      duration: remote.duration ?? undefined,
+      ext: remote.ext,
+      hash: remote.hash,
+      id,
+      key: remote.key,
+      size: remote.size,
+      status: "remote",
+      title: remote.title,
+    };
+    this.set({ library: [...this.state.library, track] });
+    return id;
+  }
+
+  /** Adds a cloud track whose file is already in the local cache. */
+  addCachedTrack(remote: RemoteTrack) {
+    return this.enqueue(
+      {
+        artist: remote.artist,
+        cloud: "synced",
+        cues: remote.cues,
+        ext: remote.ext,
+        hash: remote.hash,
+        key: remote.key,
+        size: remote.size,
+        title: remote.title,
+      },
+      { ext: remote.ext, hash: remote.hash, kind: "cache" }
+    );
+  }
+
+  /** Switches a remote track to its freshly downloaded cache copy and analyzes it. */
+  attachCache(id: string) {
+    const track = this.state.library.find((t) => t.id === id);
+    if (!track?.hash || !track.ext) return;
+    this.sources.set(id, { ext: track.ext, hash: track.hash, kind: "cache" });
+    this.updateTrack(id, { cloud: "synced", progress: undefined, status: "queued" });
+    this.queue.push(id);
+    this.pump();
+  }
+
+  removeTrack(id: string) {
+    this.sources.delete(id);
+    this.set({ library: this.state.library.filter((t) => t.id !== id) });
+  }
+
   async loadToDeck(trackId: string, deckId: DeckId) {
     const track = this.state.library.find((t) => t.id === trackId);
     if (!track?.analysis) return;
     const buffer = await this.decode(trackId);
-    this.decks[deckId].load({ analysis: track.analysis, artist: track.artist, buffer, id: track.id, title: track.title });
+    const deck = this.decks[deckId];
+    deck.load({ analysis: track.analysis, artist: track.artist, buffer, id: track.id, title: track.title });
+    if (track.cues) deck.restoreCues(track.cues);
   }
 }

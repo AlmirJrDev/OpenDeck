@@ -42,6 +42,9 @@ Click **+ Demo tracks** (procedurally generated house loops at
   whether it fits the free tier of Cloudflare R2, Vercel Blob or Supabase Storage, the monthly
   cost and download cost per computer otherwise, and the upload time. Prices live in
   `src/storage/plans.ts` with the date they were checked
+- Cloud library: sign in, upload your music to Cloudflare R2 once, and download it on other
+  computers into a local cache that plays offline. Track list, BPM, key and cue points sync
+  through Supabase. Setup: [docs/cloud-setup.md](docs/cloud-setup.md)
 - Keyboard: `Z`/`X`/`C` play/cue/sync A · `M`/`N`/`B` play/cue/sync B · `1-4` / `7-0` hot cues ·
   `←`/`→` crossfader · `Q`–`I` sampler pads
 
@@ -49,6 +52,9 @@ Click **+ Demo tracks** (procedurally generated house loops at
 
 | Path | What it is |
 | --- | --- |
+| `api/` | Vercel functions: signed R2 upload and download links |
+| `supabase/` | Database schema for the cloud library |
+| `src/cloud/` | Sign-in, sync, local cache |
 | `electron/` | Desktop shell: window, `app://` protocol, file dialogs, permissions |
 | `src/engine/` | Audio engine: `deck.ts`, `engine.ts` (mixer, library), `analysis.ts` (BPM, waveforms) |
 | `src/components/dj/` | DJ UI: decks, mixer, library, zoomed waveform |
@@ -59,5 +65,5 @@ Click **+ Demo tracks** (procedurally generated house loops at
 - MIDI controllers (Web MIDI is already allowed in the desktop app)
 - Split-cable cue mode (cue on the left channel, master on the right) for single-output laptops
 - Key lock (time-stretch without pitch change) via SoundTouch/Rubber Band in an AudioWorklet
-- Persistent library (IndexedDB / SQLite), playlists, cue points saved per track
+- Playlists and crates in the cloud library
 - Recording the mix, FX on the master, saving custom sampler banks

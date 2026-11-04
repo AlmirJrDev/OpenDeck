@@ -10,22 +10,43 @@ import {
   TrackListItemIndex,
   TrackListItemTitle,
 } from "@/components/ui/track-list";
+import { useCloud } from "@/cloud/context";
 import { useEngine } from "@/engine/context";
 import type { DeckId } from "@/engine/deck";
 import { camelotLabel, keyName, keysCompatible } from "@/engine/key";
+import type { LibraryTrack } from "@/engine/engine";
 import { useStore } from "@/engine/store";
 import { cn } from "@/lib/utils";
 import { native } from "@/native";
 
+import { CloudBar } from "./cloud-bar";
 import { Pad } from "./pad";
 import { StorageCheck } from "./storage-check";
 import { CAPTION, formatClock } from "./theme";
+
+const percent = (p?: number) => `${Math.round((p ?? 0) * 100)}%`;
+
+const cloudLabel = (t: LibraryTrack) => {
+  switch (t.cloud) {
+    case "synced":
+      return "In cloud";
+    case "uploading":
+      return `Uploading ${percent(t.progress)}`;
+    case "downloading":
+      return `Downloading ${percent(t.progress)}`;
+    case "remote":
+      return "Cloud only, download to play";
+    default:
+      return null;
+  }
+};
 
 const COLUMNS = "grid grid-cols-[2rem_1fr_5rem_8rem_4rem_8rem] gap-3";
 
 /** Library row: DESIGN.md `track-title`, `track-meta`, `readout-small`, and `key-match`. */
 export const LibraryPanel = () => {
   const engine = useEngine();
+  const cloud = useCloud();
   const { library } = useStore(engine);
   const deckA = useStore(engine.decks.A);
   const deckB = useStore(engine.decks.B);
@@ -106,6 +127,10 @@ export const LibraryPanel = () => {
         <StorageCheck />
       </div>
 
+      <div className="border-y border-divider py-3">
+        <CloudBar />
+      </div>
+
       <div className={cn(COLUMNS, "border-b border-divider px-2 pb-2", CAPTION)}>
         <span>#</span>
         <span>Title</span>
@@ -127,13 +152,14 @@ export const LibraryPanel = () => {
           {library.map((t, i) => {
             const decks = onDeck(t.id);
             const playing = decks.some((d) => (d === "A" ? deckA : deckB).playing);
-            const key = t.analysis?.key ?? null;
+            const key = t.analysis?.key ?? t.key ?? null;
+            const cloudText = cloudLabel(t);
             const match = key !== null && referenceKeys.some((k) => keysCompatible(k, key));
             return (
               <TrackListItem
                 active={selected === t.id}
                 className={cn(COLUMNS, "rounded-none data-active:bg-surface-control")}
-                disabled={t.status !== "ready"}
+                disabled={t.status !== "ready" && t.status !== "remote"}
                 key={t.id}
                 onDoubleClick={() => {
                   const target = !deckA.playing ? "A" : !deckB.playing ? "B" : null;
@@ -160,7 +186,7 @@ export const LibraryPanel = () => {
                         ? "Analyzing"
                         : t.status === "error"
                           ? `Load failed: ${t.error}`
-                          : t.artist || "Unknown artist"}
+                          : [t.artist || "Unknown artist", cloudText].filter(Boolean).join(" · ")}
                   </TrackListItemDescription>
                 </TrackListItemContent>
                 <span className="text-right font-mono text-[13px] font-medium tabular-nums">
@@ -176,7 +202,16 @@ export const LibraryPanel = () => {
                   {t.duration ? formatClock(t.duration).slice(0, 5) : "--"}
                 </TrackListItemDuration>
                 <TrackListItemActions className="justify-end">
-                  {(["A", "B"] as const).map((d) => (
+                  {t.status === "remote" ? (
+                    <Pad
+                      aria-label={`Download ${t.title}`}
+                      disabled={t.cloud === "downloading"}
+                      onClick={() => void cloud.downloadOne(t.id).catch(() => engine.updateTrack(t.id, { cloud: "remote", progress: undefined }))}
+                      size="sm"
+                    >
+                      {t.cloud === "downloading" ? percent(t.progress) : "Download"}
+                    </Pad>
+                  ) : (["A", "B"] as const).map((d) => (
                     <Pad
                       aria-label={`Load ${t.title} on deck ${d}`}
                       disabled={t.status !== "ready"}

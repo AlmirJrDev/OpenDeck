@@ -9,6 +9,8 @@ import { MixerPanel } from "@/components/dj/mixer-panel";
 import { SamplerPanel } from "@/components/dj/sampler-panel";
 import { CAPTION } from "@/components/dj/theme";
 import { ZoomWaveform } from "@/components/dj/zoom-waveform";
+import { CloudProvider } from "@/cloud/context";
+import { CloudSync } from "@/cloud/sync";
 import { EngineProvider } from "@/engine/context";
 import { Engine } from "@/engine/engine";
 import { native } from "@/native";
@@ -49,13 +51,15 @@ const useShortcuts = (engine: Engine) => {
 };
 
 const engine = new Engine();
-if (import.meta.env.DEV) Object.assign(window, { opendeck: engine });
+const cloud = new CloudSync(engine);
+if (import.meta.env.DEV) Object.assign(window, { opendeck: engine, opendeckCloud: cloud });
 
 const App = () => {
   useShortcuts(engine);
 
   return (
     <EngineProvider engine={engine}>
+      <CloudProvider cloud={cloud}>
       <div className="min-h-svh bg-background p-4 text-foreground">
         <div className="flex flex-col gap-px border border-divider bg-divider">
           <header className="flex items-center gap-4 bg-background px-4 py-3">
@@ -98,6 +102,7 @@ const App = () => {
           <LibraryPanel />
         </div>
       </div>
+      </CloudProvider>
     </EngineProvider>
   );
 };

@@ -329,6 +329,15 @@ export class Deck extends Store<DeckState> {
     this.set({ hotCues });
   }
 
+  /** Applies saved cue points after loading; the deck parks on the cue like a CDJ. */
+  restoreCues({ cue, hotCues }: { cue: number | null; hotCues: (number | null)[] }) {
+    const valid = (t: number | null) => (t !== null && t >= 0 && t <= this.duration ? t : null);
+    const restored = Array.from({ length: HOT_CUES }, (_, i) => valid(hotCues[i] ?? null));
+    const at = valid(cue);
+    this.set({ hotCues: restored, ...(at === null ? {} : { cue: at }) });
+    if (at !== null && !this.state.playing) this.seek(at);
+  }
+
   setPitch(pitch: number) {
     this.reanchor();
     this.set({ pitch });
