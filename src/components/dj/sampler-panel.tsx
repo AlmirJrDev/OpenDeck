@@ -38,7 +38,7 @@ export const SamplerPanel = () => {
       <div className="flex items-baseline gap-3">
         <span className={CAPTION}>Sampler</span>
         <span className="truncate text-xs text-text-secondary">
-          Keys Q–I. Drop an audio file on a pad to replace it. Right-click a pad to change its mode.
+          Keys X–M , . Drop an audio file on a pad to replace it. Right-click a pad to change its mode.
         </span>
       </div>
       <div className="flex items-start gap-4">

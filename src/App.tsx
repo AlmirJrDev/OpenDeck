@@ -12,26 +12,43 @@ import { ZoomWaveform } from "@/components/dj/zoom-waveform";
 import { CloudProvider } from "@/cloud/context";
 import { CloudSync } from "@/cloud/sync";
 import { EngineProvider } from "@/engine/context";
+import type { DeckId } from "@/engine/deck";
 import { Engine } from "@/engine/engine";
 import { native } from "@/native";
 
+const AUTO_LOOP_BEATS = 4;
+
+/** One deck's keys, mirrored around the keyboard like djay Pro's default layout. */
+const deckKeys = (id: DeckId, keys: { play: string; sync: string; back: string; forward: string; fx: string; cue: string; hotCues: string[]; loop: string; half: string; double: string }) => {
+  const deck = (e: Engine) => e.decks[id];
+  const map: Record<string, (e: Engine) => void> = {
+    [keys.play]: (e) => deck(e).togglePlay(),
+    [keys.sync]: (e) => deck(e).syncTo(e.other(id)),
+    [keys.back]: (e) => deck(e).beatJump(-4),
+    [keys.forward]: (e) => deck(e).beatJump(4),
+    [keys.fx]: (e) => deck(e).setFx({ on: !deck(e).getSnapshot().fx.on }),
+    [keys.cue]: (e) => deck(e).cuePress(),
+    [keys.loop]: (e) => {
+      const d = deck(e);
+      if (d.getSnapshot().loop) d.exitLoop();
+      else d.setLoop(AUTO_LOOP_BEATS);
+    },
+    [keys.half]: (e) => deck(e).scaleLoop(0.5),
+    [keys.double]: (e) => deck(e).scaleLoop(2),
+  };
+  keys.hotCues.forEach((key, i) => {
+    map[key] = (e) => deck(e).hotCue(i);
+  });
+  return map;
+};
+
+/** djay Pro's default keyboard shortcuts (keys without modifiers). */
 const SHORTCUTS: Record<string, (e: Engine) => void> = {
-  z: (e) => e.decks.A.togglePlay(),
-  x: (e) => e.decks.A.cuePress(),
-  c: (e) => e.decks.A.syncTo(e.decks.B),
-  m: (e) => e.decks.B.togglePlay(),
-  n: (e) => e.decks.B.cuePress(),
-  b: (e) => e.decks.B.syncTo(e.decks.A),
-  "1": (e) => e.decks.A.hotCue(0),
-  "2": (e) => e.decks.A.hotCue(1),
-  "3": (e) => e.decks.A.hotCue(2),
-  "4": (e) => e.decks.A.hotCue(3),
-  "7": (e) => e.decks.B.hotCue(0),
-  "8": (e) => e.decks.B.hotCue(1),
-  "9": (e) => e.decks.B.hotCue(2),
-  "0": (e) => e.decks.B.hotCue(3),
+  ...deckKeys("A", { back: "3", cue: "q", double: "d", forward: "4", fx: "5", half: "s", hotCues: ["w", "e", "r", "t"], loop: "a", play: "1", sync: "2" }),
+  ...deckKeys("B", { back: "7", cue: "p", double: "k", forward: "8", fx: "6", half: "j", hotCues: ["o", "i", "u", "y"], loop: "l", play: "0", sync: "9" }),
   ArrowLeft: (e) => e.setCrossfader(Math.max(-1, e.getSnapshot().crossfader - 0.1)),
   ArrowRight: (e) => e.setCrossfader(Math.min(1, e.getSnapshot().crossfader + 0.1)),
+  f: (e) => e.setCrossfader(0),
 };
 
 const useShortcuts = (engine: Engine) => {
@@ -66,7 +83,7 @@ const App = () => {
             <h1 className="font-mono text-sm font-bold tracking-[0.15em] uppercase">OpenDeck</h1>
             <span className={`${CAPTION} whitespace-nowrap`}>{native ? "Desktop" : "Web"} prototype</span>
             <p className="hidden truncate font-mono text-[11px] text-text-tertiary min-[1700px]:block">
-              A: Z play · X cue · C sync · 1-4 hot cues | B: M play · N cue · B sync · 7-0 hot cues | ←/→ crossfader | Q-I sampler
+              djay layout · A: 1 play · 2 sync · Q cue · W-T hot cues · A loop | B: 0 play · 9 sync · P cue · O-Y hot cues · L loop | ←/→ F crossfader | X-M sampler
             </p>
             <div className="ml-auto">
               <AudioSetup />

@@ -8,7 +8,8 @@ import { Store } from "./store";
 export type SampleMode = "one-shot" | "hold" | "loop" | "toggle";
 
 export const SAMPLE_MODES: SampleMode[] = ["one-shot", "hold", "loop", "toggle"];
-export const SAMPLER_HOTKEYS = ["q", "w", "e", "r", "t", "y", "u", "i"];
+/** djay Pro sampler keys: X C V and B N M, then , and . for pads 7 and 8. */
+export const SAMPLER_HOTKEYS = ["x", "c", "v", "b", "n", "m", ",", "."];
 
 export interface SampleSlot {
   name: string;

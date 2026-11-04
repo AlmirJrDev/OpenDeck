@@ -33,7 +33,7 @@ Click **+ Demo tracks** (procedurally generated house loops at
   next beat, echo-type tails ring out after switching off. Only the selected effect's audio graph
   exists, so the list costs no CPU
 - Sampler: 8 pads (Air Horn, Siren, Laser, Riser, Impact, Rewind, Snare Roll, Scratch) on keys
-  Q–I, with one-shot / hold / loop / toggle modes (right-click to change); drop any audio file
+  X C V B N M , ., with one-shot / hold / loop / toggle modes (right-click to change); drop any audio file
   on a pad to replace its sound
 - Scrolling 3-band waveform (low/mid/high) with beat grid; drag to scrub, wheel to zoom
 - Mixer: trim, 3-band EQ with kill, one-knob filter (LP/HP), channel faders, equal-power
@@ -55,8 +55,10 @@ Click **+ Demo tracks** (procedurally generated house loops at
 - Cloud library: sign in, upload your music to Cloudflare R2 once, and download it on other
   computers into a local cache that plays offline. Track list, BPM, key and cue points sync
   through Supabase. Setup: [docs/cloud-setup.md](docs/cloud-setup.md)
-- Keyboard: `Z`/`X`/`C` play/cue/sync A · `M`/`N`/`B` play/cue/sync B · `1-4` / `7-0` hot cues ·
-  `←`/`→` crossfader · `Q`–`I` sampler pads
+- Keyboard, djay Pro's default layout: deck A `1` play · `2` sync · `3`/`4` jump · `5` FX ·
+  `Q` cue · `W E R T` hot cues 1–4 · `A` loop · `S`/`D` halve/double; deck B mirrored: `0` · `9` ·
+  `7`/`8` · `6` · `P` · `O I U Y` · `L` · `J`/`K`; `←`/`→` move and `F` centres the crossfader;
+  sampler on `X C V B N M , .`
 
 ## Layout
 
