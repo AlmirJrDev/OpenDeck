@@ -53,6 +53,8 @@ export const LibraryPanel = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  /** djay import: "busy" while reading, then the result line. */
+  const [djay, setDjay] = useState<string | null>(null);
 
   // Harmonic matches are judged against what is playing, or else what is loaded.
   const playingDecks = (["A", "B"] as const).filter((d) => (d === "A" ? deckA : deckB).playing);
@@ -111,6 +113,31 @@ export const LibraryPanel = () => {
               + Import folder
             </Pad>
           )}
+          {native && (
+            <Pad
+              disabled={djay === "busy"}
+              onClick={async () => {
+                setDjay("busy");
+                try {
+                  const result = await native!.importDjayCues();
+                  if (!result) return setDjay(null);
+                  const applied = engine.importDjayCues(result.tracks);
+                  const cues = result.tracks.reduce((n, t) => n + t.hotCues.filter((c) => c !== null).length, 0);
+                  setDjay(
+                    `Imported ${cues} hot cues for ${result.tracks.length} djay tracks` +
+                      (applied ? `, ${applied} in the library now` : "") +
+                      ". Others get theirs when you add the file."
+                  );
+                } catch (error) {
+                  setDjay(`djay import failed: ${error instanceof Error ? error.message : String(error)}`);
+                }
+              }}
+              size="sm"
+              title="Read hot cues from djay Pro's library (MediaLibrary.db)"
+            >
+              {djay === "busy" ? "Reading djay…" : "Import djay cues"}
+            </Pad>
+          )}
           <input
             accept="audio/*"
             aria-label="Add audio files"
@@ -125,6 +152,11 @@ export const LibraryPanel = () => {
           />
         </div>
         <StorageCheck />
+        {djay && djay !== "busy" && (
+          <p aria-live="polite" className="w-full text-xs text-text-secondary" role="status">
+            {djay}
+          </p>
+        )}
       </div>
 
       <div className="border-y border-divider py-3">

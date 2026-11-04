@@ -4,10 +4,11 @@ import { dbToGain } from "@/lib/decibels";
 import { readCached } from "@/cloud/cache";
 import { extensionOf } from "@/cloud/config";
 import { sha256Hex } from "@/cloud/hash";
-import { native, type NativeAudioFile } from "@/native";
+import { native, type DjayTrackCues, type NativeAudioFile } from "@/native";
 
 import type { TrackAnalysis } from "./analysis";
 import { analyzeBuffer } from "./analyze-buffer";
+import { fileKeys, hasCues, importFileCues, lookupCues, rememberCues } from "./cue-store";
 import { Deck, type DeckId } from "./deck";
 import { DEMO_SPECS, renderDemoTrack, type DemoSpec } from "./demo-tracks";
 import type { MusicalKey } from "./key";
@@ -43,6 +44,8 @@ export interface LibraryTrack {
   progress?: number;
   /** Cue points saved for this track, restored when a deck loads it. */
   cues?: TrackCues;
+  /** File path (desktop) or file name (browser) the track was added from. */
+  file?: string;
 }
 
 export interface RemoteTrack {
@@ -319,8 +322,12 @@ export class Engine extends Store<EngineState> {
       const buffer = await this.decode(id);
       const analysis = await analyzeBuffer(buffer);
       const track = this.state.library.find((t) => t.id === id);
+      // Cues saved on this computer, or imported from djay for this file.
+      const saved = track?.cues ? undefined : lookupCues(hashPatch.hash ?? track?.hash, track?.file);
+      if (saved) rememberCues(hashPatch.hash ?? track?.hash, saved);
       this.updateTrack(id, {
         ...hashPatch,
+        ...(saved ? { cues: saved } : {}),
         analysis,
         bpm: analysis.bpm,
         cloud: track?.cloud ?? (hashPatch.hash ? "local" : undefined),
@@ -340,15 +347,40 @@ export class Engine extends Store<EngineState> {
   addFiles(files: Iterable<File>) {
     for (const file of files) {
       if (file.type.startsWith("audio/") || AUDIO_FILE.test(file.name)) {
-        this.enqueue(splitArtist(titleFromFile(file.name)), { file, kind: "file" });
+        this.enqueue({ ...splitArtist(titleFromFile(file.name)), file: file.name }, { file, kind: "file" });
       }
     }
   }
 
   addNativeFiles(files: NativeAudioFile[]) {
     for (const file of files) {
-      this.enqueue(splitArtist(titleFromFile(file.name)), { kind: "native", path: file.path });
+      this.enqueue({ ...splitArtist(titleFromFile(file.name)), file: file.path }, { kind: "native", path: file.path });
     }
+  }
+
+  /**
+   * Saves hot cues imported from djay by file, and gives them to library
+   * tracks that have none yet. Cues set in OpenDeck are never overwritten.
+   * Returns how many tracks in the library got cues now.
+   */
+  importDjayCues(tracks: DjayTrackCues[]) {
+    const entries = tracks.map((t) => ({ cues: { cue: null, hotCues: t.hotCues }, files: t.files }));
+    importFileCues(entries);
+    let applied = 0;
+    for (const track of this.state.library) {
+      if (!track.file || hasCues(track.cues) || track.status !== "ready") continue;
+      const keys = new Set(fileKeys(track.file));
+      const match = entries.find((e) => e.files.some((f) => fileKeys(f).some((k) => keys.has(k))));
+      if (!match) continue;
+      applied += 1;
+      this.updateTrack(track.id, { cues: match.cues });
+      rememberCues(track.hash, match.cues);
+      for (const deck of Object.values(this.decks)) {
+        const s = deck.getSnapshot();
+        if (s.track?.id === track.id && !s.hotCues.some((t) => t !== null)) deck.restoreCues(match.cues);
+      }
+    }
+    return applied;
   }
 
   addDemoTracks() {

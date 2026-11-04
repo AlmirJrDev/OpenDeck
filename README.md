@@ -42,6 +42,12 @@ Click **+ Demo tracks** (procedurally generated house loops at
   second audio device; master output device selection
 - Desktop app: import a whole music folder or pick files with the native dialog; tracks are
   analysed in a background queue and decoded again when loaded, so large libraries fit in memory
+- Cue memory: hot cues and the cue point are saved on this computer by file hash, so they come back
+  after a restart even without the cloud library
+- djay Pro import (desktop app): **Import djay cues** reads hot cues 1–8 from djay's
+  `MediaLibrary.db` (a copy, read-only; saved loops become a cue at their start) and matches them to
+  your files by path or file name. Cues you already set in OpenDeck are kept. Reader:
+  `electron/djay.mjs`
 - Storage check: **Check folder size** measures a music folder (sizes only, no upload) and shows
   whether it fits the free tier of Cloudflare R2, Vercel Blob or Supabase Storage, the monthly
   cost and download cost per computer otherwise, and the upload time. Prices live in

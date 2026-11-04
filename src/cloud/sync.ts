@@ -1,4 +1,5 @@
 import type { Engine, LibraryTrack, RemoteTrack, TrackCues } from "@/engine/engine";
+import { rememberCues } from "@/engine/cue-store";
 import { Store } from "@/engine/store";
 
 import { hasCached, requestPersistentStorage, writeCached } from "./cache";
@@ -320,6 +321,7 @@ export class CloudSync extends Store<CloudSyncState> {
         const track = this.engine.findTrack((t) => t.id === next.track?.id);
         if (JSON.stringify(track?.cues) === JSON.stringify(cues)) return;
         this.engine.updateTrack(next.track.id, { cues });
+        rememberCues(track?.hash, cues);
         if (track?.hash && track.cloud === "synced" && this.state.user) this.scheduleCueSave(track.hash, cues);
       });
     }

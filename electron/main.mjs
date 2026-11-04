@@ -1,8 +1,11 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, session } from "electron";
+
+import { defaultLibraryPath, readDjayCues } from "./djay.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(here, "..", "dist");
@@ -63,6 +66,22 @@ ipcMain.handle("scan-folder", async (event) => {
       .map(async (e) => ({ name: e.name, size: (await stat(path.join(e.parentPath, e.name))).size }))
   );
   return { files, folder: path.basename(root) };
+});
+
+// Reads hot cues from djay Pro's library; asks for the file when it is not in the usual place.
+ipcMain.handle("import-djay-cues", async (event) => {
+  let file = defaultLibraryPath();
+  if (!existsSync(file)) {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(window, {
+      filters: [{ extensions: ["db"], name: "djay library (MediaLibrary.db)" }],
+      properties: ["openFile"],
+      title: "Find djay's MediaLibrary.db",
+    });
+    if (result.canceled) return null;
+    file = result.filePaths[0];
+  }
+  return readDjayCues(file);
 });
 
 ipcMain.handle("read-audio", async (_event, file) => {
