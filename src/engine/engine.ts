@@ -81,7 +81,14 @@ interface EngineState {
   masterDevice: string | null;
   phonesDevice: string | null;
   deviceError: string | null;
+  /** The master output takes no audio: the context is running but its clock stands still. */
+  outputStalled: boolean;
 }
+
+/** How often the output watchdog compares the audio clock with the wall clock. */
+const WATCHDOG_MS = 500;
+/** Consecutive stalled checks before warning (about 1.5 s). */
+const STALL_CHECKS = 3;
 
 const titleFromFile = (name: string) => name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ");
 
@@ -121,8 +128,10 @@ export class Engine extends Store<EngineState> {
       deviceError: null,
       library: [],
       masterDevice: null,
+      outputStalled: false,
       phonesDevice: null,
     });
+    this.watchOutput();
     const ctx = this.ctx;
     this.master = ctx.createGain();
     const limiter = ctx.createDynamicsCompressor();
@@ -163,6 +172,28 @@ export class Engine extends Store<EngineState> {
     };
     follow(this.decks.A, this.decks.B);
     follow(this.decks.B, this.decks.A);
+  }
+
+  /**
+   * Some sound cards (seen with a USB card on Windows) stop taking audio while
+   * the context still reports "running": decks then look like they play but
+   * stay silent and frozen. Compare the audio clock with the wall clock and
+   * say so instead of failing silently.
+   */
+  private watchOutput() {
+    let lastWall = performance.now();
+    let lastAudio = this.ctx.currentTime;
+    let stalled = 0;
+    window.setInterval(() => {
+      const wall = (performance.now() - lastWall) / 1000;
+      const audio = this.ctx.currentTime - lastAudio;
+      lastWall = performance.now();
+      lastAudio = this.ctx.currentTime;
+      const stuck = this.ctx.state === "running" && wall > 0.2 && audio < wall * 0.25;
+      stalled = stuck ? stalled + 1 : 0;
+      const outputStalled = stalled >= STALL_CHECKS;
+      if (outputStalled !== this.state.outputStalled) this.set({ outputStalled });
+    }, WATCHDOG_MS);
   }
 
   other(id: DeckId) {
@@ -442,12 +473,25 @@ export class Engine extends Store<EngineState> {
     this.set({ library: this.state.library.filter((t) => t.id !== id) });
   }
 
+  /** Latest load request per deck, so a slow decode never replaces a newer pick. */
+  private readonly loadTokens: Record<DeckId, number> = { A: 0, B: 0 };
+
   async loadToDeck(trackId: string, deckId: DeckId) {
     const track = this.state.library.find((t) => t.id === trackId);
     if (!track?.analysis) return;
-    const buffer = await this.decode(trackId);
     const deck = this.decks[deckId];
+    const token = ++this.loadTokens[deckId];
+    deck.beginLoad();
+    let buffer: AudioBuffer;
+    try {
+      buffer = await this.decode(trackId);
+    } catch (error) {
+      if (token === this.loadTokens[deckId]) deck.cancelLoad();
+      throw error;
+    }
+    if (token !== this.loadTokens[deckId]) return;
     deck.load({ analysis: track.analysis, artist: track.artist, buffer, id: track.id, title: track.title });
     if (track.cues) deck.restoreCues(track.cues);
+    deck.startQueuedPlay();
   }
 }

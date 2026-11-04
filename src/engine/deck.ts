@@ -32,6 +32,10 @@ export interface DeckState {
   /** Position when the state last changed; read `time` for a live value. */
   position: number;
   fx: FxState;
+  /** A track is being decoded for this deck. */
+  loading: boolean;
+  /** Play was pressed while loading; the deck starts as soon as the track is ready. */
+  playQueued: boolean;
 }
 
 const HOT_CUES = 8;
@@ -74,10 +78,12 @@ export class Deck extends Store<DeckState> {
       cue: 0,
       fx: DEFAULT_FX,
       hotCues: Array(HOT_CUES).fill(null),
+      loading: false,
       loop: null,
       pitch: 0,
       pitchRange: 8,
       playing: false,
+      playQueued: false,
       position: 0,
       quantize: true,
       synced: false,
@@ -219,6 +225,16 @@ export class Deck extends Store<DeckState> {
     }
   }
 
+  /** A track is being decoded for this deck: play presses from now on wait for it. */
+  beginLoad() {
+    this.set({ loading: true, playQueued: false });
+  }
+
+  /** Loading failed or was replaced: forget a queued play. */
+  cancelLoad() {
+    this.set({ loading: false, playQueued: false });
+  }
+
   load(track: LoadedTrack) {
     this.stopSource();
     this.anchorPos = 0;
@@ -228,6 +244,7 @@ export class Deck extends Store<DeckState> {
     this.set({
       cue,
       hotCues: Array(HOT_CUES).fill(null),
+      loading: false,
       loop: null,
       playing: false,
       position: cue,
@@ -237,7 +254,18 @@ export class Deck extends Store<DeckState> {
     this.applyRate();
   }
 
+  /** Starts a play that was pressed while the track was loading. Call after cues are restored. */
+  startQueuedPlay() {
+    if (!this.state.playQueued) return;
+    this.set({ playQueued: false });
+    this.play();
+  }
+
   play() {
+    if (this.state.loading) {
+      this.set({ playQueued: true });
+      return;
+    }
     if (!this.state.track || this.state.playing) return;
     if (this.anchorPos >= this.duration) this.anchorPos = 0;
     void this.ctx.resume();
@@ -282,7 +310,8 @@ export class Deck extends Store<DeckState> {
   }
 
   togglePlay() {
-    if (this.state.playing) this.pause();
+    if (this.state.loading) this.set({ playQueued: !this.state.playQueued });
+    else if (this.state.playing) this.pause();
     else this.play();
   }
 

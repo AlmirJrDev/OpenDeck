@@ -41,15 +41,16 @@ export const DeckControls = ({ deck, mirrored = false }: { deck: Deck; mirrored?
           Cue
         </Pad>
         <Pad
-          active={s.playing}
+          active={s.playing || s.playQueued}
           aria-label={`${name} play`}
           className="h-auto min-h-14 flex-[1.4]"
-          disabled={!track}
+          disabled={!track && !s.loading}
           onClick={() => deck.togglePlay()}
           size="lg"
+          title={s.loading ? "Loading: play starts when the track is ready" : undefined}
           toggle
         >
-          {s.playing ? "❚❚ Pause" : "▶ Play"}
+          {s.loading ? (s.playQueued ? "▶ Loading…" : "Loading…") : s.playing ? "❚❚ Pause" : "▶ Play"}
         </Pad>
       </div>
 

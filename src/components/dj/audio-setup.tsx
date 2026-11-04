@@ -12,7 +12,7 @@ import { useOutputDevices } from "./use-output-devices";
 /** Master and headphone output pickers. */
 export const AudioSetup = () => {
   const engine = useEngine();
-  const { masterDevice, phonesDevice, deviceError } = useStore(engine);
+  const { masterDevice, phonesDevice, deviceError, outputStalled } = useStore(engine);
   const { devices, loading, permission, requestPermission } = useOutputDevices();
   const shared = {
     devices,
@@ -23,6 +23,15 @@ export const AudioSetup = () => {
 
   return (
     <div className="flex items-center gap-3 text-xs">
+      {outputStalled && (
+        <span
+          className="max-w-80 font-semibold text-destructive"
+          role="alert"
+          title="The sound card stopped taking audio. Replug it, close other apps using it, or pick another output."
+        >
+          No sound: the master output stopped responding. Pick another output or replug the device.
+        </span>
+      )}
       {deviceError && <span className="max-w-64 truncate text-destructive" title={deviceError}>{deviceError}</span>}
       <label className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.11em] text-text-tertiary uppercase">
         <span>Master</span>
