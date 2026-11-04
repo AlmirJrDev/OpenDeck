@@ -360,7 +360,12 @@ export class Deck extends Store<DeckState> {
   }
 
   setFx(patch: Partial<FxState>) {
-    const fx = { ...this.state.fx, ...patch };
+    let fx = { ...this.state.fx, ...patch };
+    // Vinyl Brake is a one-shot: pressing On stops the deck over the chosen beats.
+    if (fx.type === "vinylbrake") {
+      if (patch.on) this.brake(fx.beats);
+      fx = { ...fx, on: false };
+    }
     this.set({ fx });
     this.fx.set(fx, this.nextBeatTime());
   }

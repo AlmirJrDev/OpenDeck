@@ -25,9 +25,13 @@ Click **+ Demo tracks** (procedurally generated house loops at
 - Musical key detection (chroma + Krumhansl profiles) shown in Camelot notation; the library and
   deck badges turn green for harmonic matches and red for clashes, following pitch changes
 - Bar counter (bar.beat), 8-bar phrase indicator and bar numbers on the waveform
-- Beat FX per deck (Rekordbox style): Echo, Ping Pong, Reverb, Flanger, Phaser, Trans, Roll and
-  Crush, tempo-synced (¼–4 beats) with level and on/off; Trans and Roll start on the next beat,
-  echo-type tails ring out after switching off; Vinyl Brake slows the deck to a stop
+- Beat FX per deck (Rekordbox style), 35 effects in a grouped menu: Delay, Echo, Spiral, Reverb,
+  Rev Delay, MT Delay, Up/Down Echo, Trans, Pan, Filter, Flanger, Phaser, Slip Roll, Roll,
+  Rev Roll, Robot, Pitch, Enigma Jet, Mobius Saw/Tri, Low Cut Echo, Ping Pong, Helix, Vinyl Brake,
+  Stretch, BPF/HPF/LPF/Crush Echo, Noise, Spiral Up/Down and Reverb Up/Down. Tempo-synced
+  (¼–4 beats, or bars for sweeps) with level and on/off; Trans, Pan and the rolls start on the
+  next beat, echo-type tails ring out after switching off. Only the selected effect's audio graph
+  exists, so the list costs no CPU
 - Sampler: 8 pads (Air Horn, Siren, Laser, Riser, Impact, Rewind, Snare Roll, Scratch) on keys
   Q–I, with one-shot / hold / loop / toggle modes (right-click to change); drop any audio file
   on a pad to replace its sound
