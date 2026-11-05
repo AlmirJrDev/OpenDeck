@@ -387,8 +387,14 @@ const echo = ({ feedback, loop, shift, glide = 0.02 }: EchoOptions): Factory =>
     return (p) => {
       ramp(delay.delayTime, p.len, p.now, glide);
       grains?.pitch(2 ** ((shift ?? 0) / 12), 0.08, p.now);
+      // Once off, shorten the feedback so the tail fades to −60 dB within TAIL_S
+      // instead of ringing for up to a minute on long, high-feedback echoes.
+      ramp(fb.gain, p.on ? feedback : Math.min(feedback, 0.001 ** (p.len / TAIL_S)), p.now);
     };
   });
+
+/** Longest ring-out after an echo-type effect is switched off, in seconds. */
+const TAIL_S = 4;
 
 const darkEcho = (ctx: BaseAudioContext) => [filter(ctx, "highpass", 250), filter(ctx, "lowpass", 6000)];
 
